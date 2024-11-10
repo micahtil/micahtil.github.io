@@ -6,9 +6,8 @@ layout: home
 ---
 My name is Micah Tilove and I'm a Product Analyst. Listed below is a set of non-professional data collection and analysis projects I've done. They tend to be baby-focused, as my personal life in general has been baby-centered the last few years.
 
-- [Newborn Sleep Tracking](/baby-sleep)
 - [The Rise of Elmo](/sesame-street)
-
+- [Newborn Sleep Tracking](/baby-sleep)
 
 \
 \
