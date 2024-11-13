@@ -20,7 +20,7 @@ The chart below conveys season averages -- for each season, on average, what per
 Although first introduced as a named character in 1980, Elmo really starts to pick up steam in the mid-80s, and by 1990 is clearly a popular character. By 1996, the year of the Tickle Me Elmo dolls, he's second only to big bird. But the last 20 years have been truly bananas: Sesame Street currently rests on Elmo's tiny red shoulders. Elmo's accelerating spread fits fairly well on an exponential model, in fact.
 ![elmo  model](/assets/sesame_Figure_2.png)
 
-A natural question is: what does the future hold for Sesame Street? We can expect Elmo to appear in 100% of Sesame Street segments by 2028 (95% CI: 2027 to 2032). After that, they will presumably have to introduce a second Elmo, Elmo-β, to appear alongside Elmo-α increasingly often. The show will be saturated with Elmo-β in 2036 (95% CI: 2027 to 2032), at which point Elmo-γ will make his first appearance.
+A natural question is: what does the future hold for Sesame Street? We can expect Elmo to appear in 100% of Sesame Street segments by 2028 (95% CI: 2027 to 2032). After that, they will presumably have to introduce a second Elmo, Elmo-β, to appear alongside Elmo-α increasingly often. The show will be saturated with Elmo-β in 2036 (95% CI: 2035 to 2040), at which point Elmo-γ will make his first appearance.
 
 ![elmo  forecast](/assets/sesame_Figure_3.png)  
 
