@@ -25,12 +25,18 @@ A natural question is: what does the future hold for Sesame Street? We can expec
 ![elmo  forecast](/assets/sesame_Figure_3.png)  
 
 
+Elmo has completely taken over Sesame Street, but the original characters had a 20 year headstart. Has he been popular long enough to be the all-time most popular muppet? Not quite. He has just surpassed Oscar for all-time segments, but Big Bird and Ernie still have (rapidly diminishing) leads.
+
+![Cumulative Segments Per Season](/assets/sesame_Figure_Cumulative.png)  
+
 ### Methods
 Model fitting done with Scipy's curve_fit
 \
 95% confidence interval was found with a Monte Carlo simulation of possible parameter sets, based on the covariance matrix from curve_fit.
 \
+Data was initially collected for the [30 most commonly searched muppets  on the wiki](https://muppet.fandom.com/wiki/Category:Sesame_Street_Muppet_Characters), along with some additional characters of interest I threw in.
 \
+Charts only displayed muppets who were in the top five for most appearances in a season, for at least three seasons through the show's history.
 \
 \
 ![elmo  forecast](/assets/elmo.jpg_large)
