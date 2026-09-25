@@ -1,0 +1,5 @@
+project_id = "october-club"
+
+[functions.slack-spend]
+verify_jwt = false
+# Slack does not send Supabase JWTs. This function verifies Slack's HMAC instead.

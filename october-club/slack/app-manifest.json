@@ -1,0 +1,22 @@
+{
+  "display_information": {
+    "name": "October Club",
+    "description": "Log spending and follow your private October race.",
+    "background_color": "#172e2b"
+  },
+  "features": {
+    "bot_user": { "display_name": "October Club", "always_online": false },
+    "slash_commands": [{
+      "command": "/spend",
+      "url": "https://emgbizytsfoqicopvxfg.supabase.co/functions/v1/slack-spend",
+      "description": "Log coffee shop spending for October",
+      "usage_hint": "12.50 [YYYY-MM-DD] | refund 5 | total | undo | done YYYY-MM-DD",
+      "should_escape": true
+    }]
+  },
+  "oauth_config": {
+    "redirect_urls": ["https://emgbizytsfoqicopvxfg.supabase.co/auth/v1/callback"],
+    "scopes": { "bot": ["commands"] }
+  },
+  "settings": { "org_deploy_enabled": false, "socket_mode_enabled": false, "token_rotation_enabled": false }
+}
