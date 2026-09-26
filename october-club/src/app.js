@@ -4,11 +4,13 @@ import { money, toCents, escapeHtml as esc, shortDate, datesBetween, leaderboard
 import { createDemo } from './demo.js';
 import { chartMarkup } from './chart.js';
 import { usageGuideView } from './guide.js';
+import { slackLoginOptions, readAuthSession, cleanAuthReturn } from './auth.js';
 import { parseCommand, HELP } from '../supabase/functions/_shared/command.js';
 
 const url = import.meta.env.VITE_SUPABASE_URL, key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const client = url && key ? createClient(url, key, { auth: { storageKey: 'october-club-auth', flowType: 'pkce' } }) : null;
 const app = document.querySelector('#app');
+let authBusy = false, authInitializing = true;
 let data = null, demo = false, tab = 'race', category = 'all', selectedDate = '', authError = '', loading = false, noticeTimer, refreshTimer, authGeneration = 0;
 const maxDate = () => data.today < data.challenge.ends_on ? data.today : data.challenge.ends_on;
 const open = () => data.today >= data.challenge.starts_on && data.today < data.challenge.closes_on;
@@ -19,7 +21,7 @@ const categoryName = id => data.categories.find(c => c.id === id)?.name || id;
 function notify(message) { clearTimeout(noticeTimer); document.querySelector('#notice').textContent = message; noticeTimer = setTimeout(() => { document.querySelector('#notice').textContent = ''; }, 6000); }
 function header() { return `${demo ? '<div class="demo-strip"><strong>Interactive preview</strong> · Fictional spending. Changes reset when you leave.<button data-action="exit">Exit preview</button></div>' : ''}<header class="topbar"><div class="shell"><a class="brand" href="./"><span class="brand-mark"></span>october club</a><div class="row"><span class="pill">The race to spend less.</span>${data ? `<button class="button ghost" data-action="${demo ? 'exit' : 'signout'}">${demo ? 'Exit preview' : 'Sign out'}</button>` : ''}</div></div></header>`; }
 function authView() {
-  return `${header()}<main class="shell auth-layout"><section class="auth-copy"><div class="eyebrow">The October spending challenge</div><h1>The lowest<br>spender wins.</h1><p>Imagine the savings if you cut out all the simple pleasures that make our Sisyphean nightmare of an existence tolerable</p><span class="auth-stamp">01 — 31 October, 2026</span></section><section class="card auth-card"><h2>Your circle. One starting line.</h2><p class="muted">${client ? 'Use your Slack account to enter the private challenge.' : 'Explore the race while the club’s Slack connection is being set up.'}</p>${client ? '<button class="button full" data-action="login">Sign in with Slack</button><hr>' : ''}<button class="button outline full" data-action="demo">Explore the preview ↗</button>${authError ? `<p class="error" role="alert">${esc(authError)}</p><button class="button ghost" data-action="signout">Sign out and try another account</button>` : ''}<p class="fine-print">Challenge members can see everyone’s coffee shop dollar totals and spending over time. Access is limited to the people your organizer invites.</p></section></main>`;
+  return `${header()}<main class="shell auth-layout"><section class="auth-copy"><div class="eyebrow">The October spending challenge</div><h1>The lowest<br>spender wins.</h1><p>Imagine the savings if you cut out all the simple pleasures that make our Sisyphean nightmare of an existence tolerable</p><span class="auth-stamp">01 — 31 October, 2026</span></section><section class="card auth-card"><h2>Your circle. One starting line.</h2><p class="muted">${client ? 'Use your Slack account to enter the private challenge.' : 'Explore the race while the club’s Slack connection is being set up.'}</p>${client ? '<button class="button full" data-action="login">Sign in with Slack</button><p class="small muted">On your phone, finish sign-in in the same browser where you started. If Slack opens its app, return to that browser tab. If needed, start Sign in with Slack again here.</p><hr>' : ''}<button class="button outline full" data-action="demo">Explore the preview ↗</button>${authError ? `<p class="error" role="alert">${esc(authError)}</p><button class="button ghost" data-action="signout">Sign out and try another account</button>` : ''}<p class="fine-print">Challenge members can see everyone’s coffee shop dollar totals and spending over time. Access is limited to the people your organizer invites.</p></section></main>`;
 }
 function leaderboardView() {
   const rows = leaderboard(data.members, data.entries, category);
@@ -64,6 +66,27 @@ function render() {
   const views = { race: raceView, add: addView, review: reviewView, entries: () => `<section class="card table-card"><div class="table-title"><h2>The group’s spending log</h2></div>${entriesView()}</section>`, guide: () => usageGuideView(data.me.role === 'owner'), slack: slackView, rules: rulesView, account: accountView };
   app.innerHTML = `${header()}<main class="shell"><div class="intro row between"><div><div class="eyebrow muted">October 1–31, 2026 · ${esc(data.challenge.currency)}</div><h1 style="margin-top:10px">The race to spend less.</h1><p class="muted">Imagine the savings if you cut out all the simple pleasures that make our Sisyphean nightmare of an existence tolerable</p></div><button class="button" data-tab="add">＋ Add spending</button></div><nav class="tabs" aria-label="Challenge">${[['race', 'The race'], ['entries', 'Spending log'], ['guide', 'How to use'], ['slack', 'Slack commands'], ['rules', 'Ground rules'], ['account', 'Account']].map(([id, title]) => `<button class="tab" data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${title}</button>`).join('')}</nav><div id="view">${(views[tab] || raceView)()}</div><footer class="footer row between wrap"><span>October Club · A little less, together.</span><button class="button ghost small" data-action="refresh">Refresh totals</button></footer></main>`;
 }
+async function syncAuth() {
+  if (!client || demo || data || authBusy) return;
+  const generation = authGeneration;
+  const returnUrl = location.href;
+  authBusy = true;
+  try {
+    const session = await readAuthSession(client.auth, returnUrl);
+    if (generation !== authGeneration || demo) return;
+    if (session) { authError = ''; await load(); }
+  } catch (error) {
+    if (generation === authGeneration && !demo) { data = null; authError = error.message; }
+  } finally {
+    authInitializing = false;
+    authBusy = false;
+    if (location.href === returnUrl) {
+      const cleanUrl = cleanAuthReturn(returnUrl);
+      if (cleanUrl !== returnUrl) history.replaceState(history.state, '', cleanUrl);
+    }
+    if (generation === authGeneration && !demo && !data) render();
+  }
+}
 async function rpc(name, args = {}) { const { data: result, error } = await client.rpc(name, args); if (error) throw new Error(error.message || 'Something went wrong. Please try again.'); return result; }
 async function load() { const generation = authGeneration; if (!demo) { const response = await rpc('club_dashboard'); if (generation !== authGeneration) return; data = response; } selectedDate ||= maxDate(); render(); }
 function startDemo() { authGeneration++; demo = true; data = createDemo(); selectedDate = '2026-10-14'; tab = 'race'; category = 'all'; render(); }
@@ -99,7 +122,7 @@ app.addEventListener('click', async event => {
       case 'demo': startDemo(); break;
       case 'exit': authGeneration++; demo = false; data = null; render(); if (client) { const { data: s } = await client.auth.getSession(); if (s.session) await load(); } break;
       case 'signout': await signOut(); break;
-      case 'login': { button.disabled = true; const { error } = await client.auth.signInWithOAuth({ provider: 'slack_oidc', options: { redirectTo: new URL('./', location.href).href } }); if (error) throw error; break; }
+      case 'login': { button.disabled = true; authError = ''; const { error } = await client.auth.signInWithOAuth(slackLoginOptions(location.href)); if (error) throw error; break; }
       case 'refresh': button.disabled = true; await load(); notify('Spending totals refreshed.'); break;
       case 'export': { const blob = new Blob([JSON.stringify({ challenge: data.challenge, profile: data.me, budgets: data.budgets, entries: data.entries.filter(e => e.member_id === data.me.id) }, null, 2)], { type: 'application/json' }); const href = URL.createObjectURL(blob), a = document.createElement('a'); a.href = href; a.download = 'october-club-my-spending.json'; a.click(); setTimeout(() => URL.revokeObjectURL(href), 1000); break; }
     }
@@ -143,8 +166,12 @@ app.addEventListener('submit', async event => {
 render();
 if (client) {
   client.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_OUT' && !demo) { authGeneration++; data = null; render(); }
-    if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && !demo && !data) setTimeout(() => load().catch(error => { data = null; authError = error.message; render(); }), 0);
+    if (event === 'SIGNED_OUT' && !demo) { if (!authInitializing) authGeneration++; data = null; render(); }
+    if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && !demo && !data) setTimeout(syncAuth, 0);
   });
+  void syncAuth();
+  window.addEventListener('pageshow', syncAuth);
+  window.addEventListener('focus', syncAuth);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void syncAuth(); });
   refreshTimer = setInterval(async () => { if (data && !demo && !loading && tab === 'race' && document.visibilityState === 'visible' && document.activeElement?.id !== 'chart-date') { loading = true; try { await load(); } catch { notify('Could not refresh. Showing the last loaded totals.'); } finally { loading = false; } } }, 30000);
 }
