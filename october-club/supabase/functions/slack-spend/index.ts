@@ -3,7 +3,7 @@ import { HELP, parseCommand, verifySlack, safeResponseUrl } from '../_shared/com
 import { formatStandings } from '../_shared/standings.js';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
-const reply = (text: string) => ({ response_type: 'ephemeral', text: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), mrkdwn: false, replace_original: false });
+const reply = (text: string, shareInChannel = false) => ({ response_type: shareInChannel ? 'in_channel' : 'ephemeral', text: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), mrkdwn: false, replace_original: false });
 
 Deno.serve(async (request: Request) => {
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -30,16 +30,19 @@ Deno.serve(async (request: Request) => {
   const { action, ...payload } = command;
 
   // Acknowledge immediately; Slack allows only 3 seconds. Send the actual outcome
-  // to its signed, validated private response URL after the database commits.
+  // to its signed, validated response URL. Only successful standings are shared
+  // with the originating channel; acknowledgements and errors remain private.
   const task = (async () => {
     const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     let text: string;
+    let shareInChannel = false;
     try {
       const { data, error } = await supabase.rpc('club_slack_command', { p_team_id: teamId, p_user_id: userId, p_action: action, p_data: payload, p_request_id: triggerId });
       text = error ? error.message : action === 'standings' ? formatStandings(data) : data.message;
+      shareInChannel = !error && action === 'standings';
     } catch { text = 'I could not confirm the result. Check /spend total or the website before resubmitting, to avoid a duplicate.'; }
     try {
-      const response = await fetch(responseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reply(text)), signal: AbortSignal.timeout(10000) });
+      const response = await fetch(responseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reply(text, shareInChannel)), signal: AbortSignal.timeout(10000) });
       if (!response.ok) console.error('Slack confirmation could not be delivered:', response.status);
     } catch { console.error('Slack confirmation delivery failed; spending may already be recorded.'); }
   })();
