@@ -1,8 +1,12 @@
-export const HELP = 'Try /spend 12.50 · /spend 5.50 2026-10-05 · /spend refund 5 · /spend undo · /spend total · /spend done 2026-10-14. All purchases count toward Coffee shop. No category is needed. Amounts add to your total; do not submit your cumulative balance.';
+export const HELP = 'Try /spend 12.50 · /spend 5.50 2026-10-05 · /spend refund 5 · /spend undo · /spend total · /spend standings · /spend done 2026-10-14. All purchases count toward Coffee shop. No category is needed. Amounts add to your total; do not submit your cumulative balance.';
 export function parseCommand(text) {
   const parts = text.trim().split(/\s+/).filter(Boolean);
   if (!parts.length || parts[0] === 'help') return { action: 'help' };
   if (parts[0] === 'total' && parts.length === 1) return { action: 'total' };
+  if (parts[0] === 'standings') {
+    if (parts.length !== 1) throw new Error('Use /spend standings to see the group’s October spending.');
+    return { action: 'standings' };
+  }
   if (parts[0] === 'undo' && parts.length <= 2) {
     if (parts[1] && !/^[0-9a-f-]{36}$/i.test(parts[1])) throw new Error('Use /spend undo, or /spend undo followed by an entry ID.');
     return { action: 'undo', entry_id: parts[1] || null };

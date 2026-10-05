@@ -14,6 +14,7 @@ export function usageGuideView(isOwner = false) {
     <div class="command-row"><code>/spend 5.50</code><p class="small muted">Add $5.50 for today.</p></div>
     <div class="command-row"><code>/spend 5.50 2026-10-05</code><p class="small muted">Add a missed purchase on October 5. Replace the date with the actual purchase date, within October and no later than today.</p></div>
     <div class="command-row"><code>/spend total</code><p class="small muted">Check your recorded October total and review date.</p></div>
+    <div class="command-row"><code>/spend standings</code><p class="small muted">See everyone’s coffee shop totals, entry counts and review dates, lowest spending first. The reply is visible only to you. Unreviewed members are marked Unconfirmed.</p></div>
     <div class="command-row"><code>/spend help</code><p class="small muted">Show a reminder of the commands.</p></div>
     <p class="note">Purchases open October 1. Before then, you can join, set your name and check your total. If a command times out, check your total and Spending log before retrying so you don’t count the same purchase twice.</p>
     <button class="button outline" data-tab="add">Add spending on the website</button>

@@ -1,8 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.117.1';
 import { HELP, parseCommand, verifySlack, safeResponseUrl } from '../_shared/command.js';
+import { formatStandings } from '../_shared/standings.js';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
-const reply = (text: string) => ({ response_type: 'ephemeral', text, mrkdwn: false, replace_original: false });
+const reply = (text: string) => ({ response_type: 'ephemeral', text: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), mrkdwn: false, replace_original: false });
 
 Deno.serve(async (request: Request) => {
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -35,7 +36,7 @@ Deno.serve(async (request: Request) => {
     let text: string;
     try {
       const { data, error } = await supabase.rpc('club_slack_command', { p_team_id: teamId, p_user_id: userId, p_action: action, p_data: payload, p_request_id: triggerId });
-      text = error ? error.message : data.message;
+      text = error ? error.message : action === 'standings' ? formatStandings(data) : data.message;
     } catch { text = 'I could not confirm the result. Check /spend total or the website before resubmitting, to avoid a duplicate.'; }
     try {
       const response = await fetch(responseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reply(text)), signal: AbortSignal.timeout(10000) });

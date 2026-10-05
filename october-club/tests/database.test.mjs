@@ -22,6 +22,7 @@ before(async () => {
     create table auth.identities (user_id uuid, provider text, identity_data jsonb);
     create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid$$;`);
   await db.exec(await readFile(new URL('../supabase/migrations/202609240001_club.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/202610050001_standings.sql', import.meta.url), 'utf8'));
   const dates = (await db.query("select (now() at time zone 'America/New_York')::date::text today, ((now() at time zone 'America/New_York')::date - 1)::text yesterday, ((now() at time zone 'America/New_York')::date + 1)::text tomorrow")).rows[0];
   ({ today, yesterday, tomorrow } = dates);
   await db.query("insert into club_private.challenge(slack_team_id,starts_on,ends_on,closes_on) values ('TTEST', $1::date - 10, $1::date + 10, $1::date + 14)", [today]);
@@ -104,6 +105,39 @@ test('server-only Slack endpoint checks workspace and membership', async () => {
     }
   } finally { await db.exec('reset role'); }
 });
+test('standings is member-only, includes refunds and zero spenders, and reads fresh totals without writing', async () => {
+  const denied = async (sql, pattern) => { await db.exec('savepoint denied'); try { await assert.rejects(db.query(sql), pattern); } finally { await db.exec('rollback to savepoint denied; release savepoint denied'); } };
+  await db.exec('begin');
+  try {
+    await db.query("insert into club_private.entries(member_id,category_id,amount_cents,spent_on,source,voided_at) values ($1,'coffee',1000,$2,'slack',null), ($1,'coffee',-300,$2,'web',null), ($1,'coffee',50000,$2,'web',now()), ($1,'coffee',50000,$3,'web',null), ($1,'coffee',50000,$2::date-100,'web',null)", [friend, today, tomorrow]);
+    await db.query('update club_private.members set reviewed_through=$1 where id=$2', [yesterday, friend]);
+    const beforeRequests = (await db.query('select count(*)::int n from club_private.requests')).rows[0].n;
+    for (const role of ['anon', 'authenticated']) {
+      await db.exec('set role ' + role);
+      await denied("select public.club_slack_command('TTEST','UOWNER','standings','{}','overview')", /permission denied/);
+      await db.exec('reset role');
+    }
+    await db.exec('set role service_role');
+    await denied("select public.club_slack_command('TWRONG','UOWNER','standings','{}','overview')", /Wrong Slack/);
+    await denied("select public.club_slack_command('TTEST','USTRANGER','standings','{}','overview')", /organizer/);
+    const overview = async () => (await db.query("select public.club_slack_command('TTEST','UFRIEND','standings','{}','overview') result")).rows[0].result;
+    const first = await overview();
+    assert.equal(first.today, today);
+    assert.equal(first.members.length, 3);
+    const row = first.members.find(m => m.id === friend);
+    assert.equal(row.total_cents, 700); assert.equal(row.entry_count, 2); assert.equal(row.reviewed_through, yesterday);
+    assert.equal(first.members.find(m => m.display_name === 'UNEW').total_cents, 0);
+    await db.exec('reset role');
+    await db.query("insert into club_private.entries(member_id,category_id,amount_cents,spent_on,source) values ($1,'coffee',100,$2,'web')", [friend, today]);
+    await db.exec('set role service_role');
+    assert.equal((await overview()).members.find(m => m.id === friend).total_cents, 800);
+    await db.exec('reset role');
+    assert.equal((await db.query('select count(*)::int n from club_private.requests')).rows[0].n, beforeRequests);
+    // Reapplying this additive migration is safe for existing projects.
+    await db.exec((await readFile(new URL('../supabase/migrations/202610050001_standings.sql', import.meta.url), 'utf8')).replace(/^begin;/, '').replace(/commit;\s*$/, ''));
+  } finally { await db.exec('rollback; reset role'); }
+});
+
 test('reconciliation deadline is enforced on the server', async () => {
   await db.query('update club_private.challenge set starts_on=$1::date-20,ends_on=$1::date-1,closes_on=$1::date', [today]);
   await assert.rejects(mutate(ownerAuth, 'add', { amount_cents: 100, category_id: 'coffee', date: yesterday }), /close after/);

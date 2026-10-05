@@ -7,6 +7,7 @@ import { chartMarkup } from './chart.js';
 import { usageGuideView } from './guide.js';
 import { slackLoginOptions, readAuthSession, cleanAuthReturn } from './auth.js';
 import { parseCommand, HELP } from '../supabase/functions/_shared/command.js';
+import { formatStandings } from '../supabase/functions/_shared/standings.js';
 
 const url = import.meta.env.VITE_SUPABASE_URL, key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const client = url && key ? createClient(url, key, { auth: { storageKey: 'october-club-auth', flowType: 'pkce' } }) : null;
@@ -50,7 +51,7 @@ function entriesView(onlyMine = false) {
 }
 function reviewView() { return `<section class="card form-layout"><h2>All caught up?</h2><p class="small muted">Check your bank app, receipts or notes. Once every coffee shop purchase is logged, confirm the date you’ve reviewed through.</p><form id="review-form"><div class="field"><label for="review-date">All my spending is logged through</label><input id="review-date" name="date" type="date" min="${data.challenge.starts_on}" max="${maxDate()}" value="${maxDate()}" required ${!open() ? 'disabled' : ''}></div><div class="form-error" role="alert"></div><button class="button" type="submit" ${!open() ? 'disabled' : ''}>Confirm reviewed</button></form></section><div class="section-heading"><h2>Your entries</h2></div><section class="card table-card">${entriesView(true)}</section>`; }
 function slackView() {
-  const examples = [['/spend 12.50', 'Add $12.50 to today’s coffee shop spending.'], ['/spend 5.50 2026-10-05', 'Add a purchase you forgot, on its actual date.'], ['/spend refund 5', 'Subtract a refund from today’s coffee shop spending.'], ['/spend undo', 'Undo your most recently added active entry.'], ['/spend total', 'Check your October total.'], ['/spend done 2026-10-14', 'Confirm all spending through October 14 is logged.']];
+  const examples = [['/spend 12.50', 'Add $12.50 to today’s coffee shop spending.'], ['/spend 5.50 2026-10-05', 'Add a purchase you forgot, on its actual date.'], ['/spend refund 5', 'Subtract a refund from today’s coffee shop spending.'], ['/spend undo', 'Undo your most recently added active entry.'], ['/spend total', 'Check your October total and review date.'], ['/spend standings', 'See the group’s spending, entry counts, ranks and review dates. Only you see the reply.'], ['/spend done 2026-10-14', 'Confirm all spending through October 14 is logged.']];
   return `<section class="card form-layout"><h2>Log it in Slack</h2><p class="small muted">Commands work anywhere in your workspace. Confirmations are visible only to you; the spending joins the shared race.</p>${examples.map(([cmd, detail]) => `<div class="command-row"><code>${esc(cmd)}</code><p class="small muted">${detail}</p></div>`).join('')}<p class="note">One currency: USD. Every entry counts toward Coffee shop. No category is needed. No notes or receipts required.</p>${demo ? '<hr><h3>Try a command in the preview</h3><form id="command-form"><label for="command-input">Command</label><input id="command-input" name="command" value="/spend 12.50" required><div class="form-error" role="alert"></div><button class="button" type="submit" style="margin-top:14px">Run preview command</button></form>' : ''}</section>`;
 }
 function rulesView() { return `<section class="card form-layout"><h2>Same rules. Same starting line.</h2>${[
@@ -157,6 +158,10 @@ app.addEventListener('submit', async event => {
       const command = parseCommand(String(fields.get('command')).replace(/^\/spend\s*/, ''));
       if (command.action === 'help') { notify(HELP); return; }
       if (command.action === 'total') { notify(`Your October total is ${money(total(data.me.id))}.`); return; }
+      if (command.action === 'standings') {
+        const snapshot = { today: data.today, ends_on: data.challenge.ends_on, members: totalsFor(data.members, data.entries, 'coffee').map(member => ({ ...member, total_cents: member.total, entry_count: data.entries.filter(entry => entry.member_id === member.id && !entry.voided && entry.category_id === 'coffee').length })) };
+        errorEl.style.whiteSpace = 'pre-wrap'; errorEl.textContent = formatStandings(snapshot); return;
+      }
       if (command.action === 'invite') throw new Error('Member invitations are available when the real Slack app is connected.');
       result = await mutate(command.action, { ...command, source: 'slack' });
     }
